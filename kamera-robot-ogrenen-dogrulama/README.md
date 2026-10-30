@@ -11,6 +11,8 @@ Bu klasörde:
 - **`sim/`** ve **`run_simulation.py`**: 6 kameralı, 1 robotlu fabrika simülasyonu. Motoru sahaya
   çıkmadan denemek ve ödül/ceza (maliyet) tablosunu ayarlamak için.
 - **`ornek_kullanim.py`**: motorun gerçek sisteme nasıl bağlanacağını gösteren çalışır örnek.
+- **`gorsellestir.py`**: simülasyonu tarayıcıda izlenebilir tek dosyalık bir sayfaya çevirir. Sayfada
+  robot fabrika planında hareket eder, üç politika karşılaştırılır ve test sonuçları listelenir.
 
 ## Hızlı başlangıç
 
@@ -21,8 +23,25 @@ python run_simulation.py             # sabit eşik / basit öğrenen / önerilen
 python run_simulation.py --ablation  # önerilen sistemin her bileşeninin katkısı
 python run_simulation.py --blind     # en zor kör nokta senaryosu
 python ornek_kullanim.py             # olay -> karar -> robot sonucu -> öğrenme akışı
-python -m unittest                   # testler
+python gorsellestir.py               # izlenebilir sayfa: gorsel/simulasyon.html (tarayıcıda açın)
+python -m unittest -v                # testler
 ```
+
+### Görsel izleme
+
+`python gorsellestir.py` önce birim testlerini çalıştırır. Ardından aynı olay akışını üç politika için
+simüle eder ve sonucu `gorsel/simulasyon.html` dosyasına yazar. İnternet bağlantısı yalnızca yazı tipleri için
+gerekir. Sayfada neler var:
+
+- **Fabrika planı:** Kameraların tespitleri belirir, robot doğrulamaya gider. Her olay sonucunda işaretlenir:
+  yakalandı, kaçırıldı, yanlış alarm ya da sorun yoktu.
+- **Politika seçimi:** Aynı ana üç politikayla bakabilirsiniz.
+- **"Kaçırılanları göster" anahtarı:** Kapatınca sahada gerçekte görebileceğiniz kadarını gösterir.
+  Basit öğrenenin neden raporlarda iyi göründüğü burada anlaşılır.
+- **Grafikler:** Kaçırılan olaylar, kör noktada sistemin tahmini ve günlük robot görevi. Grafiğe tıklayınca
+  kayıt o güne atlar.
+
+`--seed`, `--days` ve `--blind` ile başka akışlar üretebilirsiniz.
 
 ## Sistem nasıl çalışır?
 
@@ -323,6 +342,8 @@ sim/
   policies.py   sabit eşik, basit öğrenen, önerilen ve ablasyon varyantları
 run_simulation.py   karşılaştırma raporu
 ornek_kullanim.py   entegrasyon örneği
+gorsellestir.py     simülasyonu ve test sonuçlarını izlenebilir HTML sayfasına çevirir
+gorsel/sablon.html  izleme sayfasının şablonu (fabrika planı, grafikler)
 tests/              birim ve simülasyon testleri
 ```
 

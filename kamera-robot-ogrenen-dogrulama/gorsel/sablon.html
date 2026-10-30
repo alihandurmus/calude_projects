@@ -1,0 +1,1055 @@
+<title>Öğrenen Doğrulama Simülasyonu</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Yerleşim: kontrol şeridi, ardından sahne (fabrika planı + yan panel), üç grafik ve test özeti.
+   Fabrika planı sayfanın kahramanı; çelik tonlu nötrler, veride kategorik ve durum renkleri. */
+:root {
+  --bg: #edf0f1;
+  --surface: #fbfcfc;
+  --floor: #e3e8ea;
+  --zone: #d4dcdf;
+  --zone-line: #b3bfc4;
+  --ink: #12181b;
+  --ink-2: #48535a;
+  --muted: #75818a;
+  --line: #d9e0e3;
+  --axis: #b9c4c9;
+  --night: #0b1824;
+  --night-max: 0.2;
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --critical: #d03b3b;
+  --on-status: #ffffff;
+  --on-warning: #0b0b0b;
+  --font-display: "Barlow Condensed", "Roboto Condensed", "Arial Narrow", sans-serif;
+  --font-body: "Barlow", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1113;
+    --surface: #161b1e;
+    --floor: #1b2225;
+    --zone: #232c30;
+    --zone-line: #364349;
+    --ink: #eaeff1;
+    --ink-2: #b3bdc2;
+    --muted: #87949b;
+    --line: #262f33;
+    --axis: #3a464c;
+    --night: #000000;
+    --night-max: 0.42;
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1113;
+  --surface: #161b1e;
+  --floor: #1b2225;
+  --zone: #232c30;
+  --zone-line: #364349;
+  --ink: #eaeff1;
+  --ink-2: #b3bdc2;
+  --muted: #87949b;
+  --line: #262f33;
+  --axis: #3a464c;
+  --night: #000000;
+  --night-max: 0.42;
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 15px/1.5 var(--font-body); -webkit-font-smoothing: antialiased; }
+.page {
+  max-width: 1320px; margin: 0 auto; display: grid; gap: 18px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 48px;
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: 0.01em; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 4.4vw, 46px); line-height: 1.02; font-weight: 700; }
+h2 { font-size: 19px; line-height: 1.2; }
+h3 { font-size: 18px; line-height: 1.2; }
+p { margin: 0; }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.eyebrow { font: 600 13px/1.2 var(--font-display); letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 6px; }
+.lede { max-width: 70ch; color: var(--ink-2); margin-top: 10px; }
+.num { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+
+/* Kontrol şeridi */
+.bar { display: grid; gap: 12px; padding: 12px 14px; }
+.bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; background: var(--bg); border-radius: 8px; }
+.seg button { font-weight: 600; font-size: 14px; line-height: 1; color: var(--ink-2); background: transparent; border: 0; border-radius: 6px; padding: 9px 12px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.seg button:hover { color: var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.key { width: 18px; height: 0; border-top: 3px solid var(--c); border-radius: 2px; display: inline-block; flex: none; }
+.transport { display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.play { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--ink); color: var(--surface); display: grid; place-items: center; cursor: pointer; flex: none; }
+.play svg { width: 16px; height: 16px; fill: currentColor; }
+.field { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-2); }
+.field select { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; color: var(--ink); }
+.check-field input { width: 18px; height: 18px; accent-color: var(--ink); margin: 0; }
+.check-field small { color: var(--muted); font-size: 12.5px; }
+.scrub { display: grid; gap: 8px; }
+.scrub input[type="range"] { width: 100%; accent-color: var(--ink); margin: 0; }
+.moments { display: flex; flex-wrap: wrap; gap: 6px; }
+.moments button { font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+.moments button:hover { color: var(--ink); border-color: var(--axis); }
+.hint { font-size: 13.5px; color: var(--ink-2); }
+
+/* Sahne */
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 350px; gap: 18px; align-items: start; }
+@media (max-width: 1000px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+.map-card { margin: 0; padding: 14px; display: grid; gap: 10px; min-width: 0; }
+.map-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 16px; }
+.clock { display: flex; align-items: baseline; gap: 10px; }
+.clock-day { font: 700 28px/1 var(--font-display); }
+.clock-time { font: 500 21px/1 var(--font-data); font-variant-numeric: tabular-nums; }
+.phase { font: 600 12px/1 var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px; border: 1px solid var(--line); color: var(--ink-2); align-self: center; }
+.robot-status { color: var(--ink-2); font-size: 14px; }
+.map-wrap { position: relative; }
+#map { width: 100%; height: auto; display: block; border-radius: 6px; touch-action: manipulation; }
+.map-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-2); }
+.lg { display: inline-flex; align-items: center; gap: 6px; }
+.lg svg { width: 16px; height: 16px; flex: none; }
+.cams-key { font-size: 12.5px; color: var(--muted); }
+
+/* Plan içi çizimler */
+.floor { fill: var(--floor); }
+.grid-line { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.zone { fill: var(--zone); stroke: var(--zone-line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.zone-label { font: 600 3.3px var(--font-display); fill: var(--ink-2); letter-spacing: 0.12px; }
+.cam { fill: var(--ink); }
+.cam-id { font: 600 2.7px var(--font-data); fill: var(--ink); }
+.base { fill: var(--surface); stroke: var(--ink-2); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.base-label, .scale-label { font: 600 2.8px var(--font-display); fill: var(--ink-2); letter-spacing: 0.1px; }
+.scale { stroke: var(--ink-2); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.night { fill: var(--night); pointer-events: none; }
+.route { stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; fill: none; opacity: 0.6; }
+.robot-body { fill: var(--ink); stroke: var(--surface); stroke-width: 0.7; }
+.robot-eye { fill: var(--surface); }
+.pulse { fill: none; stroke: var(--ink); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.mk circle { stroke: var(--surface); stroke-width: 0.6; }
+.mk .g { fill: none; stroke-width: 0.6; stroke-linecap: round; stroke-linejoin: round; display: none; }
+.mk.caught circle { fill: var(--good); }
+.mk.caught .g-check { display: inline; stroke: var(--on-status); }
+.mk.missed circle { fill: var(--critical); }
+.mk.missed .g-x { display: inline; stroke: var(--on-status); }
+.mk.false_alarm circle { fill: var(--warning); }
+.mk.false_alarm .g-bang { display: inline; stroke: var(--on-warning); }
+.mk.cleared circle { fill: var(--muted); }
+.mk.pending circle { fill: var(--surface); stroke: var(--ink); stroke-width: 0.55; }
+.callout rect { fill: var(--surface); stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.callout text { font: 500 2.9px var(--font-body); fill: var(--ink); }
+@media (max-width: 560px) {
+  .zone-label, .base-label, .callout { display: none; }
+  .cam-id { font-size: 4.2px; }
+}
+
+/* Yan panel */
+.side { display: grid; gap: 14px; min-width: 0; }
+.panel { padding: 14px; display: grid; gap: 10px; min-width: 0; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.panel-note { font-size: 12.5px; color: var(--muted); }
+.counts { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.counts th, .counts td { padding: 6px 5px; text-align: right; border-bottom: 1px solid var(--line); }
+.counts tr:last-child th, .counts tr:last-child td { border-bottom: 0; }
+.counts tbody th { text-align: left; color: var(--ink-2); font-weight: 500; }
+.counts thead th { font: 600 13px/1.15 var(--font-display); letter-spacing: 0.03em; color: var(--ink-2); vertical-align: bottom; }
+.counts thead .key { display: block; margin: 0 0 5px auto; }
+.counts td { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.counts .sel { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); font-weight: 600; }
+.feed { list-style: none; margin: 0; padding: 0; }
+.feed li { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 2px 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.feed li:last-child { border-bottom: 0; }
+.feed time { grid-row: span 2; font: 12px/1.35 var(--font-data); color: var(--ink-2); padding-top: 2px; }
+.feed .what { font-weight: 600; font-size: 14px; line-height: 1.3; }
+.feed .meta { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 12.5px; color: var(--ink-2); }
+.feed .empty { grid-column: 1 / -1; color: var(--muted); }
+.chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; color: var(--ink); white-space: nowrap; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.dot.caught { background: var(--good); }
+.dot.missed { background: var(--critical); }
+.dot.false_alarm { background: var(--warning); }
+.dot.cleared { background: var(--muted); }
+.dot.pending { border: 1.5px solid var(--ink); }
+
+/* Grafikler */
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 18px; }
+.chart { margin: 0; padding: 14px; display: grid; gap: 8px; min-width: 0; align-content: start; }
+.chart .sub { color: var(--ink-2); font-size: 13px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.now-key { width: 0; height: 13px; border-left: 1.5px solid var(--ink); display: inline-block; }
+.plot { position: relative; min-height: 210px; }
+.plot svg { display: block; width: 100%; height: auto; overflow: visible; cursor: crosshair; }
+.axis-text { font: 400 10.5px var(--font-data); fill: var(--muted); }
+.gridh { stroke: var(--line); stroke-width: 1; }
+.baseline { stroke: var(--axis); stroke-width: 1; }
+.series { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.annot { stroke: var(--axis); stroke-width: 1; }
+.annot-text { font: 600 11px var(--font-display); fill: var(--ink-2); letter-spacing: 0.04em; }
+.cursor { stroke: var(--ink); stroke-width: 1.5; }
+.cross { stroke: var(--muted); stroke-width: 1; }
+.hover-dot { stroke: var(--surface); stroke-width: 2; }
+.end-label { font: 600 11px var(--font-body); fill: var(--ink-2); }
+.tip { position: absolute; z-index: 5; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; line-height: 1.4; min-width: 150px; max-width: 270px; box-shadow: 0 6px 20px color-mix(in srgb, var(--ink) 16%, transparent); }
+.tip .t-head { font: 600 12px/1.3 var(--font-display); letter-spacing: 0.05em; color: var(--ink-2); text-transform: uppercase; margin-bottom: 4px; }
+.tip .t-row { display: flex; align-items: center; gap: 8px; }
+.tip .t-row .v { font: 600 13px var(--font-data); font-variant-numeric: tabular-nums; min-width: 40px; }
+.tip .t-row .n { color: var(--ink-2); }
+.tip .t-strong { font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.tip .t-line { color: var(--ink-2); }
+details.tv summary { cursor: pointer; font-size: 13px; color: var(--ink-2); width: fit-content; }
+.tv .tw { max-height: 260px; overflow: auto; margin-top: 6px; border: 1px solid var(--line); border-radius: 6px; }
+.tv table { border-collapse: collapse; width: 100%; font: 12px/1.4 var(--font-data); font-variant-numeric: tabular-nums; }
+.tv th, .tv td { padding: 4px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tv th { position: sticky; top: 0; background: var(--surface); font: 600 12px/1.3 var(--font-body); }
+
+/* Testler */
+.tests { padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 16px 32px; }
+@media (max-width: 880px) { .tests { grid-template-columns: minmax(0, 1fr); } }
+.tests-info { display: grid; gap: 10px; align-content: start; }
+.tests-info p { color: var(--ink-2); max-width: 62ch; }
+.cmd { margin: 0; padding: 10px 12px; background: var(--bg); border-radius: 6px; overflow-x: auto; font: 13px/1.6 var(--font-data); }
+.tests-sum { display: flex; align-items: center; gap: 8px; font-size: 15px; margin-bottom: 10px; }
+.tests-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 7px 22px; font-size: 13.5px; }
+.tests-list li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: start; }
+.tests-list svg { width: 16px; height: 16px; margin-top: 2px; }
+.ok-mark { fill: var(--good); }
+.fail-mark { fill: var(--critical); }
+.mark-glyph { fill: none; stroke: var(--on-status); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.foot { color: var(--muted); font-size: 12.5px; }
+</style>
+
+<div id="app" class="page" lang="tr">
+  <header>
+    <p class="eyebrow">Kamera + robot doğrulama · simülasyon kaydı</p>
+    <h1>Öğrenen Doğrulama Simülasyonu</h1>
+    <p class="lede" id="lede">Testleri ve simülasyonu bu oturumun bulut bilgisayarında (Linux, Python) çalıştırıyorum. Bu sayfa o çalışmanın gerçek kaydını oynatıyor: aynı olay akışında üç karar politikası.</p>
+  </header>
+
+  <section class="card bar" aria-label="Oynatma kontrolleri">
+    <div class="bar-row">
+      <div class="seg" id="seg" role="group" aria-label="Karar politikası"></div>
+      <div class="transport">
+        <button type="button" class="play" id="play" aria-label="Duraklat">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path id="play-icon" d="M3 2h3.5v12H3zM9.5 2H13v12H9.5z"/></svg>
+        </button>
+        <label class="field" for="speed">Hız
+          <select id="speed">
+            <option value="2">1 sn = 2 dk</option>
+            <option value="15" selected>1 sn = 15 dk</option>
+            <option value="60">1 sn = 1 saat</option>
+            <option value="360">1 sn = 6 saat</option>
+            <option value="1440">1 sn = 1 gün</option>
+          </select>
+        </label>
+        <label class="field check-field" for="truth"><input type="checkbox" id="truth" checked> Kaçırılanları göster <small>(sahada görünmez)</small></label>
+      </div>
+    </div>
+    <div class="scrub">
+      <input type="range" id="time" min="0" max="1" step="1" value="0" aria-label="Simülasyon zamanı">
+      <div class="moments" id="moments" aria-label="Önemli anlar"></div>
+    </div>
+    <p class="hint" id="hint">İpucu: “Basit öğrenen”i seçip kör nokta oluştuktan sonra planın sağ üst köşesine bakın. Kırmızı ✕ işaretleri, sistemin hiç bakmadığı için kaçırdığı gerçek olaylar.</p>
+  </section>
+
+  <section class="stage">
+    <figure class="card map-card">
+      <div class="map-head">
+        <div class="clock" aria-live="off">
+          <span class="clock-day" id="clk-day">Gün 0</span>
+          <span class="clock-time" id="clk-time">00:00</span>
+          <span class="phase" id="clk-phase">gündüz</span>
+        </div>
+        <p class="robot-status" id="robot-status">Robot istasyonda bekliyor</p>
+      </div>
+      <div class="map-wrap">
+        <svg id="map" viewBox="0 0 200 100" role="img" aria-label="Fabrika planı: kameralar, robot ve olaylar"></svg>
+        <div class="tip" id="map-tip" hidden></div>
+      </div>
+      <figcaption class="map-legend" id="map-legend"></figcaption>
+      <p class="cams-key" id="cams-key"></p>
+    </figure>
+
+    <aside class="side">
+      <section class="card panel" aria-labelledby="counts-title">
+        <div class="panel-head">
+          <h2 id="counts-title">Şu ana kadar</h2>
+          <span class="panel-note" id="counts-note">aynı olaylar, üç politika</span>
+        </div>
+        <table class="counts" id="counts"></table>
+      </section>
+      <section class="card panel" aria-labelledby="feed-title">
+        <div class="panel-head">
+          <h2 id="feed-title">Son olaylar</h2>
+          <span class="panel-note" id="feed-pol"></span>
+        </div>
+        <ol class="feed" id="feed"></ol>
+      </section>
+    </aside>
+  </section>
+
+  <section class="charts" id="charts" aria-label="Kaydın tamamını gösteren grafikler"></section>
+
+  <section class="card tests" aria-labelledby="tests-title">
+    <div class="tests-info">
+      <h2 id="tests-title">Testler nerede çalışıyor?</h2>
+      <p id="tests-where">Kod, bu oturum için açılan bulut bilgisayarında çalıştı: önce birim testleri, sonra üç politikanın aynı olay akışındaki simülasyonu. Bu sayfa o çalışmanın kaydı; sayfa açıkken hiçbir hesap yeniden yapılmıyor.</p>
+      <p>Aynısını kendi bilgisayarınızda, proje klasöründe çalıştırabilirsiniz:</p>
+      <pre class="cmd">python -m unittest -v
+python run_simulation.py
+python gorsellestir.py</pre>
+    </div>
+    <div>
+      <p class="tests-sum"><span class="dot caught" id="tests-dot"></span><strong id="tests-count" class="num">–</strong> <span id="tests-label">birim testi geçti</span></p>
+      <ul class="tests-list" id="tests-list"></ul>
+    </div>
+  </section>
+
+  <p class="foot" id="foot"></p>
+</div>
+
+<script>const DATA = /*__VERI__*/null;</script>
+<script>
+(() => {
+  "use strict";
+  const D = DATA;
+  const $ = (id) => document.getElementById(id);
+  if (!D) {
+    $("lede").textContent = "Veri bulunamadı. Bu sayfa gorsellestir.py ile üretilmelidir.";
+    return;
+  }
+
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const nf0 = new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 0 });
+  const nf1 = new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const pct = (v) => "%" + nf0.format(Math.round(v * 100));
+  const DAY = 1440;
+  const days = D.meta.days;
+  const T_END = days * DAY;
+  const E = D.events;
+  const NE = E.t.length;
+  const cams = D.scenario.cameras;
+  const base = D.scenario.base;
+  const P = D.policies;
+  const runs = P.map((p) => D.runs[p.key]);
+  const SERIES = ["var(--s1)", "var(--s2)", "var(--s3)"];
+  const SHORT = ["Sabit", "Basit", "Önerilen"];
+  const OUT = ["cleared", "caught", "missed", "false_alarm"];
+  const ACT = ["Yok sayıldı", "Robot gönderildi", "Doğrudan alarm"];
+  const ACT_SHORT = ["yok sayıldı", "robot gidiyor", "alarm verildi"];
+  const VERDICT = ["Robot doğruladı", "Robot bir şey bulamadı", "Robot bakamadı"];
+  const LABEL_TRUTH = { caught: "Gerçek · yakalandı", missed: "Gerçek · kaçırıldı", false_alarm: "Yanlış alarm", cleared: "Sorun yoktu", pending: "Robot yolda" };
+  const LABEL_FIELD = { caught: "Doğrulandı", false_alarm: "Yanlış alarm", cleared: "Kapandı", pending: "Robot yolda" };
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  function upper(arr, x) { // x'ten küçük-eşit eleman sayısı (sıralı dizide)
+    let lo = 0, hi = arr.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (arr[mid] <= x) lo = mid + 1; else hi = mid; }
+    return lo;
+  }
+  function svg(tag, attrs, parent) {
+    const node = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) node.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+  function html(tag, cls, text) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+  function clockOf(t) {
+    const d = Math.floor(t / DAY), m = t - d * DAY;
+    const hh = String(Math.floor(m / 60)).padStart(2, "0"), mm = String(Math.floor(m % 60)).padStart(2, "0");
+    return { d, hour: m / 60, text: hh + ":" + mm };
+  }
+  function nightAmount(h) { // 0: gündüz, 1: gece; 06-07 ve 19-20 arası geçiş
+    if (h >= 7 && h < 19) return 0;
+    if (h >= 20 || h < 6) return 1;
+    return h >= 19 ? h - 19 : 7 - h;
+  }
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+  // Olay işaretlerinin kamera çevresindeki konumu (her olay için sabit)
+  const ex = new Float32Array(NE), ey = new Float32Array(NE);
+  for (let i = 0; i < NE; i++) {
+    const c = cams[E.cam[i]], ang = i * 2.39996, rad = 3 + ((i * 7) % 5);
+    ex[i] = clamp(c.x + Math.cos(ang) * rad, 3, 197);
+    ey[i] = clamp(c.y + Math.sin(ang) * rad, 3, 97);
+  }
+  for (const r of runs) {
+    r.closeBy = [[], [], [], []];
+    for (let i = 0; i < NE; i++) r.closeBy[r.o[i]].push(r.c[i]);
+    for (const a of r.closeBy) a.sort((x, y) => x - y);
+  }
+
+  const state = { t: clamp(D.start || 0, 0, T_END), playing: !reduceMotion, speed: 15, pol: 2, truth: true };
+  let dirty = true;
+  const touch = () => { dirty = true; };
+
+  /* ---------- Başlık, testler, alt bilgi ---------- */
+  $("lede").textContent = `Testleri ve simülasyonu bu oturumun bulut bilgisayarında (Linux, Python ${D.meta.python}) çalıştırıyorum. ` +
+    `Bu sayfa o çalışmanın gerçek kaydını oynatıyor: aynı ${days} günlük olay akışında (${nf0.format(D.meta.events)} kamera tespiti) üç karar politikası.`;
+  const T = D.tests;
+  const allOk = T.passed === T.total;
+  $("tests-count").textContent = `${T.passed} / ${T.total}`;
+  $("tests-label").textContent = allOk ? `birim testi geçti · ${nf1.format(T.seconds)} sn` : "birim testi geçti; kalanlar aşağıda işaretli";
+  $("tests-dot").className = "dot " + (allOk ? "caught" : "missed");
+  $("tests-where").textContent = `Kod, bu oturum için açılan bulut bilgisayarında (Linux, Python ${D.meta.python}, numpy ${D.meta.numpy}) çalıştı: ` +
+    "önce birim testleri, sonra üç politikanın aynı olay akışındaki simülasyonu. Bu sayfa o çalışmanın kaydı; sayfa açıkken hiçbir hesap yeniden yapılmıyor.";
+  const tl = $("tests-list");
+  for (const it of T.items) {
+    const li = html("li");
+    const icon = svg("svg", { viewBox: "0 0 16 16", "aria-hidden": "true" });
+    svg("circle", { cx: 8, cy: 8, r: 8, class: it.ok ? "ok-mark" : "fail-mark" }, icon);
+    svg("path", { d: it.ok ? "M4.5 8.2l2.3 2.3 4.7-4.9" : "M5.2 5.2l5.6 5.6M10.8 5.2l-5.6 5.6", class: "mark-glyph" }, icon);
+    li.append(icon, html("span", null, it.name + (it.ok ? "" : " (kaldı)")));
+    tl.append(li);
+  }
+  $("foot").textContent = `Veri: ${days} gün · tohum ${D.meta.seed}${D.meta.blind ? " · zor kör nokta senaryosu" : ""} · ` +
+    `${nf0.format(D.meta.events)} olay · üretim ${D.meta.generated} · Python ${D.meta.python}, numpy ${D.meta.numpy}. ` +
+    "Sayılar temsili bir senaryodan; amaç mekanizmayı göstermek.";
+
+  /* ---------- Kontroller ---------- */
+  const seg = $("seg");
+  const segButtons = P.map((p, i) => {
+    const b = html("button");
+    b.type = "button";
+    const k = html("span", "key");
+    k.style.setProperty("--c", SERIES[i]);
+    b.append(k, document.createTextNode(p.name));
+    b.addEventListener("click", () => setPolicy(i));
+    seg.append(b);
+    return b;
+  });
+  function setPolicy(i) {
+    state.pol = i;
+    segButtons.forEach((b, j) => b.setAttribute("aria-pressed", String(j === i)));
+    $("feed-pol").textContent = P[i].name;
+    calloutKey = "";
+    touch();
+  }
+
+  const playBtn = $("play"), playIcon = $("play-icon");
+  function syncPlay() {
+    playIcon.setAttribute("d", state.playing ? "M3 2h3.5v12H3zM9.5 2H13v12H9.5z" : "M4 2l10 6-10 6z");
+    playBtn.setAttribute("aria-label", state.playing ? "Duraklat" : "Oynat");
+  }
+  playBtn.addEventListener("click", () => {
+    if (!state.playing && state.t >= T_END) state.t = 0;
+    state.playing = !state.playing;
+    syncPlay();
+    touch();
+  });
+  $("speed").addEventListener("change", (e) => { state.speed = Number(e.target.value); touch(); });
+  $("truth").addEventListener("change", (e) => { state.truth = e.target.checked; calloutKey = ""; touch(); });
+  const slider = $("time");
+  slider.max = String(T_END);
+  let dragging = false;
+  slider.addEventListener("pointerdown", () => { dragging = true; });
+  window.addEventListener("pointerup", () => { dragging = false; });
+  slider.addEventListener("input", () => { state.t = Number(slider.value); touch(); });
+  const moments = $("moments");
+  for (const mo of D.moments) {
+    const b = html("button", null, mo.label);
+    b.type = "button";
+    b.addEventListener("click", () => { state.t = mo.t; touch(); });
+    moments.append(b);
+  }
+  const drift = D.scenario.drift;
+  $("hint").textContent = `İpucu: “${P[1].name}”i seçip ${drift.day}. günden sonra ${drift.cameraName} bölgesine bakın. ` +
+    "Kırmızı ✕ işaretleri, sistemin oraya hiç bakmadığı için kaçırdığı gerçek olaylar. Sahada bunları kimse göremez.";
+
+  /* ---------- Fabrika planı ---------- */
+  const map = $("map");
+  svg("rect", { x: 0, y: 0, width: 200, height: 100, rx: 2, class: "floor" }, map);
+  for (let x = 10; x < 200; x += 10) svg("line", { x1: x, y1: 0, x2: x, y2: 100, class: "grid-line" }, map);
+  for (let y = 10; y < 100; y += 10) svg("line", { x1: 0, y1: y, x2: 200, y2: y, class: "grid-line" }, map);
+  for (const c of cams) {
+    const [x0, y0, x1, y1] = c.zone;
+    svg("rect", { x: x0, y: y0, width: x1 - x0, height: y1 - y0, rx: 1.5, class: "zone" }, map);
+    const labelTop = c.y - y0 > 9; // kamera alanın üst kenarına yakınsa etiket alta yazılır
+    svg("text", { x: x0 + 2, y: labelTop ? y0 + 4.8 : y1 - 2.2, class: "zone-label" }, map).textContent = c.name.toLocaleUpperCase("tr-TR");
+  }
+  svg("rect", { x: base[0] - 2.8, y: base[1] - 2.8, width: 5.6, height: 5.6, rx: 1, class: "base" }, map);
+  svg("text", { x: base[0] + 4.2, y: base[1] + 1, class: "base-label" }, map).textContent = "ROBOT İSTASYONU";
+  for (const c of cams) {
+    svg("rect", { x: c.x - 1.8, y: c.y - 1.3, width: 3.6, height: 2.6, rx: 0.6, class: "cam" }, map);
+    svg("text", { x: c.x + 2.6, y: c.y + 1, class: "cam-id" }, map).textContent = c.id;
+  }
+  svg("line", { x1: 6, y1: 58, x2: 26, y2: 58, class: "scale" }, map);
+  svg("line", { x1: 6, y1: 56.8, x2: 6, y2: 59.2, class: "scale" }, map);
+  svg("line", { x1: 26, y1: 56.8, x2: 26, y2: 59.2, class: "scale" }, map);
+  svg("text", { x: 6, y: 55.4, class: "scale-label" }, map).textContent = "20 m";
+  const nightRect = svg("rect", { x: 0, y: 0, width: 200, height: 100, rx: 2, class: "night" }, map);
+  const route = svg("line", { class: "route", visibility: "hidden" }, map);
+  const mkLayer = svg("g", {}, map);
+  const MAXM = 60;
+  const pool = [];
+  for (let j = 0; j < MAXM; j++) {
+    const g = svg("g", { class: "mk", visibility: "hidden" }, mkLayer);
+    const c = svg("circle", { r: 2.2 }, g);
+    svg("path", { class: "g g-check", d: "M-1.1 0.1L-0.3 0.9L1.2 -0.8" }, g);
+    svg("path", { class: "g g-x", d: "M-0.85 -0.85L0.85 0.85M0.85 -0.85L-0.85 0.85" }, g);
+    svg("path", { class: "g g-bang", d: "M0 -1.25L0 0.25M0 1.05L0 1.1" }, g);
+    pool.push({ g, c, idx: -1, st: "" });
+  }
+  const pulse = svg("circle", { r: 3, class: "pulse", visibility: "hidden" }, map);
+  const robotG = svg("g", {}, map);
+  svg("circle", { r: 2.7, class: "robot-body" }, robotG);
+  svg("circle", { r: 0.95, class: "robot-eye" }, robotG);
+  const callout = svg("g", { class: "callout", visibility: "hidden" }, map);
+  const coRect = svg("rect", { rx: 1 }, callout);
+  const coText = svg("text", {}, callout);
+  let calloutKey = "";
+
+  // Lejant (çizimlerle aynı sınıfları kullanır, tema ile uyumlu)
+  const legend = $("map-legend");
+  const legendItems = [
+    ["robot", "Robot"],
+    ["route", "Robotun rotası"],
+    ["pending", "Robot yolda, sonuç bekleniyor"],
+    ["caught", LABEL_TRUTH.caught],
+    ["missed", LABEL_TRUTH.missed + " (yalnızca simülasyon bilir)"],
+    ["false_alarm", "Yanlış alarm (insanlara gitti)"],
+    ["cleared", "Sorun yoktu, kapandı"],
+  ];
+  for (const [kind, text] of legendItems) {
+    const item = html("span", "lg");
+    const icon = svg("svg", { viewBox: "-4 -4 8 8", "aria-hidden": "true" });
+    if (kind === "robot") {
+      svg("circle", { r: 2.7, class: "robot-body" }, icon);
+      svg("circle", { r: 0.95, class: "robot-eye" }, icon);
+    } else if (kind === "route") {
+      svg("line", { x1: -3.6, y1: 0, x2: 3.6, y2: 0, class: "route" }, icon);
+    } else {
+      const g = svg("g", { class: "mk " + kind }, icon);
+      svg("circle", { r: kind === "cleared" ? 1.4 : 2.4 }, g);
+      svg("path", { class: "g g-check", d: "M-1.1 0.1L-0.3 0.9L1.2 -0.8" }, g);
+      svg("path", { class: "g g-x", d: "M-0.85 -0.85L0.85 0.85M0.85 -0.85L-0.85 0.85" }, g);
+      svg("path", { class: "g g-bang", d: "M0 -1.25L0 0.25M0 1.05L0 1.1" }, g);
+    }
+    item.append(icon, document.createTextNode(text));
+    legend.append(item);
+  }
+  $("cams-key").textContent = "Kameralar: " + cams.map((c) => `${c.id} ${c.name}`).join(" · ") +
+    ` · Robot hızı ${nf1.format(D.scenario.speed / 60)} m/sn`;
+
+  function markerState(r, i, t) {
+    if (t < r.c[i]) return "pending";
+    const o = OUT[r.o[i]];
+    return o === "missed" && !state.truth ? "cleared" : o;
+  }
+  function outcomeLabel(st) {
+    return (state.truth ? LABEL_TRUTH : LABEL_FIELD)[st];
+  }
+  function decisionText(r, i) {
+    const reason = D.reasons[r.r[i]] || "";
+    let text = ACT[r.a[i]];
+    if (reason === "denetim") text += " · denetim";
+    else if (reason.startsWith("kural")) text += " · kural";
+    return text;
+  }
+
+  function robotState(r, t) {
+    const M = r.missions;
+    const k = upper(M.s, t) - 1;
+    if (k < 0) return { x: base[0], y: base[1], mode: "idle" };
+    const ox = M.ox[k], oy = M.oy[k], tx = M.tx[k], ty = M.ty[k];
+    if (t < M.ar[k]) {
+      const f = clamp((t - M.s[k]) / Math.max(M.ar[k] - M.s[k], 1e-6), 0, 1);
+      return { x: ox + (tx - ox) * f, y: oy + (ty - oy) * f, mode: "travel", k, tx, ty, eta: M.ar[k] - t };
+    }
+    if (t < M.dn[k]) return { x: tx, y: ty, mode: "inspect", k };
+    // Simülasyondaki kural: bir sonraki görev dönüş süresinden önce başlıyorsa robot olduğu yerde bekler
+    const back = dist([tx, ty], base) * D.scenario.pathFactor / D.scenario.speed;
+    const next = k + 1 < M.s.length ? M.s[k + 1] : Infinity;
+    if (next < M.dn[k] + back) return { x: tx, y: ty, mode: "wait", k };
+    if (t < M.dn[k] + back) {
+      const f = (t - M.dn[k]) / back;
+      return { x: tx + (base[0] - tx) * f, y: ty + (base[1] - ty) * f, mode: "return" };
+    }
+    return { x: base[0], y: base[1], mode: "idle" };
+  }
+  function missionCamera(r, k) {
+    return cams[E.cam[r.missions.ev[k]]].name;
+  }
+
+  let robotText = "";
+  const clkDay = $("clk-day"), clkTime = $("clk-time"), clkPhase = $("clk-phase"), robotStatus = $("robot-status");
+  function renderMap(now) {
+    const r = runs[state.pol], t = state.t, ck = clockOf(t);
+    nightRect.style.opacity = `calc(var(--night-max) * ${nightAmount(ck.hour).toFixed(3)})`;
+
+    const rs = robotState(r, t);
+    robotG.setAttribute("transform", `translate(${rs.x.toFixed(2)} ${rs.y.toFixed(2)})`);
+    if (rs.mode === "travel") {
+      route.setAttribute("x1", rs.x.toFixed(2)); route.setAttribute("y1", rs.y.toFixed(2));
+      route.setAttribute("x2", rs.tx); route.setAttribute("y2", rs.ty);
+      route.setAttribute("visibility", "visible");
+    } else {
+      route.setAttribute("visibility", "hidden");
+    }
+    if (rs.mode === "inspect") {
+      const phase = reduceMotion || !state.playing ? 0.5 : (now / 900) % 1;
+      pulse.setAttribute("cx", rs.x); pulse.setAttribute("cy", rs.y);
+      pulse.setAttribute("r", (3 + phase * 5).toFixed(2));
+      pulse.setAttribute("opacity", (0.8 - phase * 0.7).toFixed(2));
+      pulse.setAttribute("visibility", "visible");
+    } else {
+      pulse.setAttribute("visibility", "hidden");
+    }
+    const text = rs.mode === "travel" ? `Robot yolda → ${missionCamera(r, rs.k)} · varışa ${nf1.format(rs.eta)} dk`
+      : rs.mode === "inspect" ? `Robot inceliyor · ${missionCamera(r, rs.k)}`
+      : rs.mode === "wait" ? `Robot bekliyor · ${missionCamera(r, rs.k)}`
+      : rs.mode === "return" ? "Robot istasyona dönüyor"
+      : "Robot istasyonda bekliyor";
+    if (text !== robotText) { robotText = text; robotStatus.textContent = text; }
+
+    const hi = upper(E.t, t);
+    const win = clamp(state.speed * 5, 90, 1440);
+    let j = 0;
+    for (let i = hi - 1; i >= 0 && j < MAXM; i--) {
+      const age = t - E.t[i];
+      if (age > win) break;
+      const p = pool[j++];
+      const st = markerState(r, i, t);
+      if (p.idx !== i) {
+        p.idx = i;
+        p.g.setAttribute("transform", `translate(${ex[i].toFixed(2)} ${ey[i].toFixed(2)})`);
+        p.g.setAttribute("visibility", "visible");
+      }
+      if (p.st !== st) {
+        p.st = st;
+        p.g.setAttribute("class", "mk " + st);
+        p.c.setAttribute("r", st === "cleared" ? 1.3 : 2.2);
+      }
+      p.g.setAttribute("opacity", (1 - 0.6 * age / win).toFixed(2));
+    }
+    for (; j < MAXM; j++) {
+      const p = pool[j];
+      if (p.idx !== -1) { p.idx = -1; p.st = ""; p.g.setAttribute("visibility", "hidden"); }
+    }
+
+    const newest = hi - 1;
+    if (newest >= 0 && t - E.t[newest] <= Math.max(45, win / 3)) {
+      const st = markerState(r, newest, t);
+      const key = `${newest}|${st}|${state.pol}|${state.truth}`;
+      if (key !== calloutKey) {
+        calloutKey = key;
+        let label = `${cams[E.cam[newest]].name} · ${D.classes[E.cls[newest]].name} · güven ${pct(E.conf[newest])} → ${ACT_SHORT[r.a[newest]]}`;
+        if (st !== "pending") label += ` · ${outcomeLabel(st).toLocaleLowerCase("tr-TR")}`;
+        coText.textContent = label;
+        const leftSide = ex[newest] > 120;
+        coText.setAttribute("text-anchor", leftSide ? "end" : "start");
+        coText.setAttribute("x", (ex[newest] + (leftSide ? -4 : 4)).toFixed(2));
+        coText.setAttribute("y", clamp(ey[newest] - 3.6, 6, 96).toFixed(2));
+        callout.setAttribute("visibility", "visible");
+        const bb = coText.getBBox();
+        coRect.setAttribute("x", (bb.x - 1.3).toFixed(2)); coRect.setAttribute("y", (bb.y - 0.9).toFixed(2));
+        coRect.setAttribute("width", (bb.width + 2.6).toFixed(2)); coRect.setAttribute("height", (bb.height + 1.8).toFixed(2));
+      }
+    } else if (calloutKey !== "none") {
+      calloutKey = "none";
+      callout.setAttribute("visibility", "hidden");
+    }
+
+    clkDay.textContent = `Gün ${ck.d}`;
+    clkTime.textContent = ck.text;
+    clkPhase.textContent = nightAmount(ck.hour) >= 0.5 ? "gece" : "gündüz";
+  }
+
+  // Plan üzerindeki işaretlere dokununca / üzerine gelince ayrıntı
+  const mapTip = $("map-tip");
+  function onMapPointer(e) {
+    const ctm = map.getScreenCTM();
+    if (!ctm) return;
+    const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+    let best = -1, bd = 4.5;
+    for (const p of pool) {
+      if (p.idx < 0) continue;
+      const d = Math.hypot(ex[p.idx] - pt.x, ey[p.idx] - pt.y);
+      if (d < bd) { bd = d; best = p.idx; }
+    }
+    if (best < 0) { mapTip.hidden = true; return; }
+    const r = runs[state.pol], st = markerState(r, best, state.t), ck = clockOf(E.t[best]);
+    mapTip.replaceChildren();
+    const head = html("div", "t-strong");
+    head.append(html("span", "dot " + st), document.createTextNode(outcomeLabel(st)));
+    mapTip.append(head, html("div", null, `${cams[E.cam[best]].name} · ${D.classes[E.cls[best]].name}`),
+      html("div", "t-line", `Gün ${ck.d} ${ck.text} · kamera güveni ${pct(E.conf[best])}`),
+      html("div", "t-line", `${P[state.pol].name}: tahmin ${pct(r.p[best])} → ${decisionText(r, best)}`));
+    if (r.v[best] >= 0 && state.t >= r.c[best]) {
+      mapTip.append(html("div", "t-line", VERDICT[r.v[best]] + (r.w[best] ? " · klibe operatör baktı" : "")));
+    }
+    const box = map.parentElement.getBoundingClientRect();
+    mapTip.hidden = false;
+    const tw = mapTip.offsetWidth, th = mapTip.offsetHeight;
+    let left = e.clientX - box.left + 14, top = e.clientY - box.top + 14;
+    if (left + tw > box.width) left = Math.max(0, e.clientX - box.left - tw - 14);
+    if (top + th > box.height) top = Math.max(0, e.clientY - box.top - th - 14);
+    mapTip.style.left = left + "px";
+    mapTip.style.top = top + "px";
+  }
+  map.addEventListener("pointermove", onMapPointer);
+  map.addEventListener("pointerdown", onMapPointer);
+  map.addEventListener("pointerleave", () => { mapTip.hidden = true; });
+
+  /* ---------- Sayaçlar ---------- */
+  const counts = $("counts");
+  const COUNT_ROWS = [
+    ["Robot görevi", (r, t) => upper(r.missions.s, t)],
+    ["Yakalanan gerçek olay", (r, t) => upper(r.closeBy[1], t)],
+    ["Kaçırılan gerçek olay", (r, t) => upper(r.closeBy[2], t), true],
+    ["İnsanlara yanlış alarm", (r, t) => upper(r.closeBy[3], t)],
+  ];
+  const thead = html("thead"), headRow = html("tr");
+  headRow.append(html("th", null, ""));
+  const headCells = P.map((p, i) => {
+    const th = html("th");
+    th.scope = "col";
+    const k = html("span", "key");
+    k.style.setProperty("--c", SERIES[i]);
+    th.append(k, document.createTextNode(p.name));
+    headRow.append(th);
+    return th;
+  });
+  thead.append(headRow);
+  const tbody = html("tbody");
+  const countCells = COUNT_ROWS.map(([label]) => {
+    const tr = html("tr");
+    const th = html("th", null, label);
+    th.scope = "row";
+    tr.append(th);
+    const cells = P.map(() => { const td = html("td"); tr.append(td); return td; });
+    tbody.append(tr);
+    return cells;
+  });
+  counts.append(thead, tbody);
+  function renderCounts() {
+    COUNT_ROWS.forEach(([, fn, hidden], row) => {
+      runs.forEach((r, i) => {
+        const text = hidden && !state.truth ? "?" : nf0.format(fn(r, state.t));
+        const td = countCells[row][i];
+        if (td.textContent !== text) td.textContent = text;
+        td.classList.toggle("sel", i === state.pol);
+      });
+    });
+    headCells.forEach((th, i) => th.classList.toggle("sel", i === state.pol));
+    $("counts-note").textContent = state.truth ? "aynı olaylar, üç politika" : "sahada görünen: kaçırılanlar bilinmez";
+  }
+
+  /* ---------- Olay akışı ---------- */
+  const feed = $("feed");
+  let feedSig = "";
+  function renderFeed() {
+    const r = runs[state.pol], t = state.t, hi = upper(E.t, t);
+    const idxs = [];
+    for (let i = hi - 1; i >= 0 && idxs.length < 7; i--) idxs.push(i);
+    const sig = state.pol + "|" + state.truth + "|" + idxs.map((i) => i + markerState(r, i, t)).join(",");
+    if (sig === feedSig) return;
+    feedSig = sig;
+    feed.replaceChildren();
+    if (!idxs.length) { feed.append(html("li", "empty", "Henüz olay yok.")); return; }
+    for (const i of idxs) {
+      const st = markerState(r, i, t), ck = clockOf(E.t[i]);
+      const li = html("li");
+      const meta = html("div", "meta");
+      const decision = html("span", "chip", decisionText(r, i));
+      const outcome = html("span", "chip");
+      outcome.append(html("span", "dot " + st), document.createTextNode(outcomeLabel(st)));
+      meta.append(html("span", null, `güven ${pct(E.conf[i])}`), decision, outcome);
+      li.append(html("time", null, `G${ck.d} ${ck.text}`), html("div", "what", `${cams[E.cam[i]].name} · ${D.classes[E.cls[i]].name}`), meta);
+      feed.append(li);
+    }
+  }
+
+  /* ---------- Grafikler ---------- */
+  const cumulative = (arr) => { let s = 0; return arr.map((v) => (s += v)); };
+  const rolling = (arr, n) => arr.map((_, d) => {
+    const lo = Math.max(0, d - n + 1);
+    let s = 0;
+    for (let k = lo; k <= d; k++) s += arr[k];
+    return s / (d - lo + 1);
+  });
+  const driftCls = D.classes.find((c) => c.key === drift.cls).name.toLocaleLowerCase("tr-TR");
+  const chartDefs = [
+    {
+      title: "Kaçırılan gerçek olaylar",
+      sub: "Birikimli toplam. Sahada bu sayıyı göremezsiniz; yalnızca simülasyon bilir.",
+      series: runs.map((r, i) => ({ name: P[i].name, short: SHORT[i], color: SERIES[i], values: cumulative(r.daily.missed) })),
+      fmt: (v) => nf0.format(v),
+      annotations: [{ day: drift.day, label: "kör nokta" }],
+    },
+    {
+      title: `${drift.cameraName} · gündüz ${driftCls} tespitleri`,
+      sub: "Sistem bu tespitlerin yüzde kaçını gerçek sanıyor? Gri çizgi gerçek oran.",
+      series: [
+        ...runs.map((r, i) => ({ name: P[i].name, short: SHORT[i], color: SERIES[i], values: r.belief })),
+        { name: "Gerçek oran", short: "Gerçek", color: "var(--muted)", values: D.beliefTruth, step: true },
+      ],
+      fmt: pct,
+      ticks: [0, 0.25, 0.5, 0.75, 1],
+      annotations: [{ day: drift.day, label: "kör nokta" }],
+    },
+    {
+      title: "Robot görevi / gün",
+      sub: "7 günlük hareketli ortalama. Az görev her zaman iyi değil: basit öğrenen az gidip çok kaçırıyor.",
+      series: runs.map((r, i) => ({ name: P[i].name, short: SHORT[i], color: SERIES[i], values: rolling(r.daily.trips, 7) })),
+      fmt: (v) => nf1.format(v),
+      tickFmt: (v) => nf0.format(v),
+      annotations: [{ day: drift.day, label: "kör nokta" }],
+    },
+  ];
+
+  function niceTicks(max) {
+    if (!(max > 0)) return [0, 1];
+    const raw = max / 4, mag = 10 ** Math.floor(Math.log10(raw)), norm = raw / mag;
+    const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+    const out = [];
+    for (let v = 0; v <= max + step - 1e-9; v += step) out.push(Math.round(v * 1e6) / 1e6);
+    return out;
+  }
+
+  const charts = chartDefs.map((def) => {
+    const fig = html("figure", "card chart");
+    fig.append(html("h3", null, def.title), html("p", "sub", def.sub));
+    const lg = html("div", "legend");
+    for (const se of def.series) {
+      const item = html("span");
+      const k = html("span", "key");
+      k.style.setProperty("--c", se.color);
+      item.append(k, document.createTextNode(se.name));
+      lg.append(item);
+    }
+    const now = html("span");
+    now.append(html("span", "now-key"), document.createTextNode("şimdi (oynatma anı)"));
+    lg.append(now);
+    const plot = html("div", "plot");
+    const s = svg("svg", { role: "img", tabindex: "0" });
+    const tip = html("div", "tip");
+    tip.hidden = true;
+    plot.append(s, tip);
+    const details = html("details", "tv");
+    details.append(html("summary", null, "Tablo olarak göster"));
+    const wrap = html("div", "tw"), table = html("table"), thd = html("thead"), tr = html("tr");
+    tr.append(html("th", null, "Gün"));
+    for (const se of def.series) tr.append(html("th", null, se.name));
+    thd.append(tr);
+    const tb = html("tbody");
+    for (let d = 0; d < days; d++) {
+      const row = html("tr");
+      row.append(html("td", null, String(d)));
+      for (const se of def.series) row.append(html("td", null, se.values[d] == null ? "–" : def.fmt(se.values[d])));
+      tb.append(row);
+    }
+    table.append(thd, tb);
+    wrap.append(table);
+    details.append(wrap);
+    fig.append(lg, plot, details);
+    $("charts").append(fig);
+    const ch = { def, fig, plot, svg: s, tip, hover: -1 };
+    s.addEventListener("pointermove", (e) => showCross(ch, dayAt(ch, e), e));
+    s.addEventListener("pointerleave", () => hideCross(ch));
+    s.addEventListener("click", (e) => seekDay(dayAt(ch, e)));
+    s.addEventListener("focus", () => showCross(ch, clamp(Math.floor(state.t / DAY), 0, days - 1)));
+    s.addEventListener("blur", () => hideCross(ch));
+    s.addEventListener("keydown", (e) => {
+      if (ch.hover < 0) ch.hover = clamp(Math.floor(state.t / DAY), 0, days - 1);
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        showCross(ch, clamp(ch.hover + (e.key === "ArrowRight" ? 1 : -1), 0, days - 1));
+      } else if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        seekDay(ch.hover);
+      } else if (e.key === "Escape") {
+        hideCross(ch);
+      }
+    });
+    return ch;
+  });
+
+  function seekDay(d) {
+    state.t = clamp(d * DAY + 9 * 60, 0, T_END);
+    touch();
+  }
+  function dayAt(ch, e) {
+    const rect = ch.svg.getBoundingClientRect();
+    const px = (e.clientX - rect.left) * (ch.W / rect.width);
+    return clamp(Math.round(((px - ch.m.l) / ch.iw) * (days - 1)), 0, days - 1);
+  }
+
+  function drawChart(ch) {
+    const W = Math.round(ch.plot.clientWidth);
+    if (!W) return;
+    const narrow = W < 420, H = 210, def = ch.def;
+    const m = { l: 40, r: narrow ? 12 : 66, t: 20, b: 24 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    let ticks = def.ticks;
+    if (!ticks) {
+      let max = 0;
+      for (const se of def.series) for (const v of se.values) if (v != null && v > max) max = v;
+      ticks = niceTicks(max);
+    }
+    const ymax = ticks[ticks.length - 1];
+    const x = (d) => m.l + (d / (days - 1)) * iw;
+    const y = (v) => m.t + ih - (v / ymax) * ih;
+    Object.assign(ch, { W, H, m, iw, ih, x, y });
+    const s = ch.svg;
+    s.replaceChildren();
+    s.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    s.setAttribute("width", W);
+    s.setAttribute("height", H);
+    for (const tv of ticks) {
+      svg("line", { x1: m.l, x2: W - m.r, y1: y(tv), y2: y(tv), class: tv === 0 ? "baseline" : "gridh" }, s);
+      svg("text", { x: m.l - 6, y: y(tv) + 3.5, "text-anchor": "end", class: "axis-text" }, s).textContent = (def.tickFmt || def.fmt)(tv);
+    }
+    const step = narrow ? 30 : 15;
+    for (let d = 0; d <= days - 1; d += step) {
+      svg("text", { x: x(d), y: H - 6, "text-anchor": d === 0 ? "start" : "middle", class: "axis-text" }, s).textContent = d === 0 ? "Gün 0" : String(d);
+    }
+    for (const a of def.annotations) {
+      svg("line", { x1: x(a.day), x2: x(a.day), y1: m.t, y2: m.t + ih, class: "annot" }, s);
+      svg("text", { x: x(a.day) + 4, y: m.t - 6, class: "annot-text" }, s).textContent = a.label;
+    }
+    const ends = [];
+    for (const se of def.series) {
+      let d = "", pen = false;
+      se.values.forEach((v, i) => {
+        if (v == null) { pen = false; return; }
+        const X = x(i).toFixed(1), Y = y(v).toFixed(1);
+        d += !pen ? `M${X} ${Y}` : se.step ? `H${X}V${Y}` : `L${X} ${Y}`;
+        pen = true;
+      });
+      svg("path", { d, class: "series", stroke: se.color }, s);
+      let last = se.values.length - 1;
+      while (last >= 0 && se.values[last] == null) last--;
+      if (last >= 0) ends.push({ se, y: y(se.values[last]), x: x(last) });
+    }
+    if (!narrow) {
+      for (const e of ends) {
+        const clash = ends.some((o) => o !== e && Math.abs(o.y - e.y) < 12);
+        if (!clash) svg("text", { x: e.x + 6, y: e.y + 4, class: "end-label" }, s).textContent = e.se.short;
+      }
+    }
+    ch.cursor = svg("line", { y1: m.t, y2: m.t + ih, class: "cursor" }, s);
+    ch.cross = svg("line", { y1: m.t, y2: m.t + ih, class: "cross", visibility: "hidden" }, s);
+    ch.dots = def.series.map((se) => svg("circle", { r: 4, fill: se.color, class: "hover-dot", visibility: "hidden" }, s));
+    s.setAttribute("aria-label", `${def.title}. ` + def.series.map((se) => {
+      const v = se.values[days - 1];
+      return `${se.name}: ${v == null ? "veri yok" : def.fmt(v)}`;
+    }).join(", ") + ` (${days - 1}. gün). Tablo görünümü grafiğin altında.`);
+    ch.cursorDay = -1;
+    updateCursor(ch);
+    if (ch.hover >= 0) showCross(ch, ch.hover);
+  }
+
+  function updateCursor(ch) {
+    if (!ch.cursor) return;
+    const d = clamp(state.t / DAY, 0, days - 1);
+    if (Math.abs(d - ch.cursorDay) < 0.005) return;
+    ch.cursorDay = d;
+    const X = ch.x(d).toFixed(1);
+    ch.cursor.setAttribute("x1", X);
+    ch.cursor.setAttribute("x2", X);
+  }
+
+  function showCross(ch, d, e) {
+    if (!ch.cross) return;
+    ch.hover = d;
+    const X = ch.x(d);
+    ch.cross.setAttribute("x1", X);
+    ch.cross.setAttribute("x2", X);
+    ch.cross.setAttribute("visibility", "visible");
+    ch.tip.replaceChildren(html("div", "t-head", `Gün ${d}`));
+    ch.def.series.forEach((se, i) => {
+      const v = se.values[d];
+      const dot = ch.dots[i];
+      if (v == null) { dot.setAttribute("visibility", "hidden"); }
+      else {
+        dot.setAttribute("cx", X);
+        dot.setAttribute("cy", ch.y(v));
+        dot.setAttribute("visibility", "visible");
+      }
+      const row = html("div", "t-row");
+      const k = html("span", "key");
+      k.style.setProperty("--c", se.color);
+      row.append(k, html("span", "v", v == null ? "–" : ch.def.fmt(v)), html("span", "n", se.name));
+      ch.tip.append(row);
+    });
+    ch.tip.append(html("div", "t-line", "Tıklayınca kayıt bu güne atlar"));
+    ch.tip.hidden = false;
+    const rect = ch.svg.getBoundingClientRect();
+    const scale = rect.width / ch.W;
+    const tw = ch.tip.offsetWidth;
+    let left = X * scale + 12;
+    if (left + tw > rect.width) left = Math.max(0, X * scale - tw - 12);
+    ch.tip.style.left = left + "px";
+    ch.tip.style.top = "8px";
+  }
+  function hideCross(ch) {
+    ch.hover = -1;
+    if (!ch.cross) return;
+    ch.cross.setAttribute("visibility", "hidden");
+    for (const dot of ch.dots) dot.setAttribute("visibility", "hidden");
+    ch.tip.hidden = true;
+  }
+
+  let resizeQueued = false;
+  const ro = new ResizeObserver(() => {
+    if (resizeQueued) return;
+    resizeQueued = true;
+    requestAnimationFrame(() => { resizeQueued = false; charts.forEach(drawChart); });
+  });
+  charts.forEach((ch) => ro.observe(ch.plot));
+
+  /* ---------- Döngü ---------- */
+  let lastFrame = performance.now(), lastFeed = 0;
+  function renderAll(now) {
+    renderMap(now);
+    renderCounts();
+    for (const ch of charts) updateCursor(ch);
+    if (!dragging) slider.value = String(Math.round(state.t));
+    if (now - lastFeed > 200 || !state.playing) { lastFeed = now; renderFeed(); }
+  }
+  function frame(now) {
+    const dt = Math.min(0.25, (now - lastFrame) / 1000);
+    lastFrame = now;
+    if (state.playing) {
+      state.t = Math.min(T_END, state.t + dt * state.speed);
+      if (state.t >= T_END) { state.playing = false; syncPlay(); }
+      dirty = true;
+    }
+    if (dirty) { dirty = false; renderAll(now); }
+    requestAnimationFrame(frame);
+  }
+
+  setPolicy(state.pol);
+  syncPlay();
+  charts.forEach(drawChart);
+  renderAll(performance.now());
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { calloutKey = ""; touch(); charts.forEach(drawChart); });
+  requestAnimationFrame(frame);
+})();
+</script>

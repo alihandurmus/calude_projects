@@ -48,6 +48,17 @@ def generate_events(sc: Scenario, days: int, seed: int) -> list[SimEvent]:
     return events
 
 
+@dataclass(frozen=True)
+class Mission:
+    """Robotun bir doğrulama görevi; zamanlar dakika."""
+
+    start: float                   # yola çıkış
+    origin: tuple[float, float]
+    target: tuple[float, float]
+    arrival: float
+    done: float                    # inceleme bitti
+
+
 class Robot:
     """Tek robot; görevleri sırayla yapar, boşta kalınca devriye merkezine döner."""
 
@@ -63,12 +74,12 @@ class Robot:
         start, pos = self._start(t)
         return start - t + self.travel_min(pos, target)
 
-    def assign(self, target, t: float) -> tuple[float, float]:
-        """Görevi kuyruğa ekler; (varış zamanı, robotun meşgul kalacağı dk) döner."""
+    def assign(self, target, t: float) -> Mission:
+        """Görevi kuyruğa ekler."""
         start, pos = self._start(t)
-        travel = self.travel_min(pos, target)
-        self.pos, self.free_at = target, start + travel + self.sc.inspect_min
-        return start + travel, travel + self.sc.inspect_min
+        arrival = start + self.travel_min(pos, target)
+        self.pos, self.free_at = target, arrival + self.sc.inspect_min
+        return Mission(start, pos, target, arrival, self.free_at)
 
     def _start(self, t: float):
         start = max(t, self.free_at)
@@ -121,8 +132,12 @@ class Result:
 
 
 def simulate(policy, sc: Scenario, events: list[SimEvent], days: int, costs: CostModel | None = None,
-             period_days: int = 15, name: str = "") -> Result:
-    """policy: decide / record_robot_result / record_human_label metotları olan herhangi bir nesne."""
+             period_days: int = 15, name: str = "", trace: dict | None = None) -> Result:
+    """policy: decide / record_robot_result / record_human_label metotları olan herhangi bir nesne.
+
+    trace verilirse her olayın kararı, robot görevi, robot sonucu ve son durumu
+    trace[event_id] içine yazılır (görselleştirme için).
+    """
     costs = costs or CostModel()
     cams = {c.id: c.pos for c in sc.cameras}
     robot = Robot(sc)
@@ -151,15 +166,22 @@ def simulate(policy, sc: Scenario, events: list[SimEvent], days: int, costs: Cos
         """Olayın son hali: insanlar haberdar oldu mu?"""
         cls = se.ev.cls
         if se.real and reported:
+            outcome = "caught"
             add_cost("delay", costs.delay_per_min[cls] * (t - se.ev.ts / 60.0), se)
         elif se.real:
+            outcome = "missed"
             res.missed[cls] += 1
             res.period_missed[period(se)] += 1
             res.drift_missed += in_drift(se)
             add_cost("miss", costs.miss[cls], se)
         elif reported:
+            outcome = "false_alarm"
             res.false_alarms += 1
             add_cost("false_alarm", costs.false_alarm[cls], se)
+        else:
+            outcome = "cleared"
+        if trace is not None:
+            trace[se.ev.event_id].update(outcome=outcome, closed_at=t)
 
     while queue:
         t, _, kind, se = heapq.heappop(queue)
@@ -170,6 +192,8 @@ def simulate(policy, sc: Scenario, events: list[SimEvent], days: int, costs: Cos
                 res.drift_real += in_drift(se)
             target = cams[ev.camera_id]
             d = policy.decide(ev, robot.eta(target, t))
+            if trace is not None:
+                trace[ev.event_id] = {"decision": d}
             if d.action is Action.IGNORE:
                 res.ignored_real += se.real
                 close(se, False, t)
@@ -177,15 +201,19 @@ def simulate(policy, sc: Scenario, events: list[SimEvent], days: int, costs: Cos
                 close(se, True, t)
                 push(t + sc.alarm_response_min, "alarm_feedback", se)
             else:
-                arrival, busy = robot.assign(target, t)
+                mission = robot.assign(target, t)
                 res.trips += 1
                 res.trips_by[ev.camera_id, ev.cls, se.real] += 1
-                add_cost("trip", costs.trip_base + costs.trip_per_min * busy, se)
-                push(arrival, "robot", se)
+                add_cost("trip", costs.trip_base + costs.trip_per_min * (mission.done - mission.start), se)
+                push(mission.arrival, "robot", se)
+                if trace is not None:
+                    trace[ev.event_id]["mission"] = mission
         elif kind == "robot":
             delay = t - ev.ts / 60.0
             verdict = robot_verdict(se, delay, sc)
             fb = policy.record_robot_result(ev.event_id, verdict, delay)
+            if trace is not None:
+                trace[ev.event_id].update(verdict=verdict, review=fb.needs_review)
             if verdict is RobotVerdict.CONFIRMED:
                 close(se, True, t)
             elif fb.needs_review:

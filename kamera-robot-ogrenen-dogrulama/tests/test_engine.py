@@ -30,6 +30,7 @@ def label_all(engine, events, is_real) -> None:
 
 class ModelTests(unittest.TestCase):
     def test_recovers_true_weights(self):
+        """Model, bilinen bir olasılık ilişkisini veriden doğru öğreniyor"""
         rng = np.random.default_rng(0)
         X = np.column_stack([np.ones(4000), rng.normal(size=4000)])
         y = (rng.random(4000) < sigmoid(X @ np.array([-1.0, 2.0]))).astype(float)
@@ -39,6 +40,7 @@ class ModelTests(unittest.TestCase):
         self.assertTrue(np.all(np.diag(model.cov) < 0.01))
 
     def test_no_data_means_prior(self):
+        """Hiç etiket yokken model başlangıç bilgisine döner"""
         model = BayesianLogisticRegression(np.array([0.5, 1.0]), np.array([2.0, 3.0]))
         model.fit(np.zeros((0, 2)), np.zeros(0))
         np.testing.assert_allclose(model.mean, [0.5, 1.0])
@@ -47,11 +49,13 @@ class ModelTests(unittest.TestCase):
 
 class DecisionTests(unittest.TestCase):
     def test_untrained_engine_trusts_camera_confidence(self):
+        """Eğitilmemiş motor kameranın güven skorunu doğru kabul ediyor"""
         engine = DecisionEngine(EngineConfig(cameras=CAMS))
         for conf in (0.2, 0.5, 0.8):
             self.assertAlmostEqual(engine.predict(event(0, conf=conf))[0], conf, places=6)
 
     def test_learns_camera_specific_false_alarms(self):
+        """Aynı sınıfta kameraya özgü yanlış alarmları ayırt ediyor (buhar ve gerçek duman)"""
         engine = DecisionEngine(EngineConfig(cameras=CAMS), seed=0)
         rng = np.random.default_rng(0)
         evs = [event(i, cls="smoke", conf=float(rng.uniform(0.3, 0.9)), cam="K1" if i % 2 else "K2")
@@ -62,6 +66,7 @@ class DecisionTests(unittest.TestCase):
         self.assertGreater(engine.predict(event(999, cls="smoke", conf=0.6, cam="K2"))[0], 0.9)
 
     def test_safety_rules_override_model(self):
+        """Güvenlik kuralları modelden üstün: duman yok sayılmaz, yüksek güvenli yangın hep alarm"""
         engine = DecisionEngine(EngineConfig(cameras=CAMS), seed=0)
         label_all(engine, [event(i, cls="smoke", conf=0.4) for i in range(60)], lambda ev: False)
         self.assertLess(engine.predict(event(999, cls="smoke", conf=0.4))[0], 0.05)
@@ -72,6 +77,7 @@ class DecisionTests(unittest.TestCase):
         self.assertEqual(fire.propensity, 1.0)
 
     def test_no_robot_means_no_dispatch(self):
+        """Robot müsait değilken robota görev verilmiyor"""
         engine = DecisionEngine(EngineConfig(cameras=CAMS), seed=0)
         for i, conf in enumerate(np.linspace(0.05, 0.95, 50)):
             for cls in ("fire", "smoke", "smoking", "open_door"):
@@ -79,6 +85,7 @@ class DecisionTests(unittest.TestCase):
                 self.assertNotEqual(d.action, Action.DISPATCH)
 
     def test_audit_sends_robot_to_some_ignored_events(self):
+        """Denetim, yok sayılan olayların bir kısmına robot gönderiyor; kaçırma tahmini doğru"""
         engine = DecisionEngine(EngineConfig(cameras=CAMS, learning=LearningConfig(audit_rate=0.5)), seed=0)
         decisions = [engine.decide(event(i, conf=0.05), eta_min=3.0) for i in range(400)]
         audits = [d for d in decisions if d.reason == "denetim"]
@@ -91,10 +98,12 @@ class DecisionTests(unittest.TestCase):
         self.assertAlmostEqual(engine.estimated_missed(), 10.0)
 
     def test_estimate_needs_audits(self):
+        """Denetim kapalıyken kaçırma tahmini üretilmiyor"""
         engine = DecisionEngine(EngineConfig(cameras=CAMS, learning=LearningConfig(audit_rate=0.0)))
         self.assertIsNone(engine.estimated_missed())
 
     def test_thompson_explores_when_uncertain(self):
+        """Thompson seçeneği belirsiz durumda keşif yapıyor, varsayılan karar yapmıyor"""
         def dispatches(exploration):
             cfg = EngineConfig(cameras=CAMS, learning=LearningConfig(exploration=exploration, audit_rate=0.0))
             engine = DecisionEngine(cfg, seed=1)
@@ -105,6 +114,7 @@ class DecisionTests(unittest.TestCase):
         self.assertEqual(dispatches("greedy"), 0)
 
     def test_old_labels_fade(self):
+        """Eski etiketler zamanla unutuluyor, modelin belirsizliği yeniden artıyor"""
         engine = DecisionEngine(EngineConfig(cameras=CAMS, learning=LearningConfig(half_life_days=10)), seed=0)
         label_all(engine, [event(i, cls="smoke", conf=0.5) for i in range(40)], lambda ev: False)
         engine.refit()
@@ -117,6 +127,7 @@ class DecisionTests(unittest.TestCase):
 
 class LabelingTests(unittest.TestCase):
     def test_not_found_is_evidence_only_when_robot_arrived_in_time(self):
+        '''"Robot bulamadı" yalnızca robot zamanında vardıysa kanıt sayılıyor'''
         careful, naive = LearningConfig(), LearningConfig(labeling="naive")
         late, fresh = 10.0, 1.0
         cases = [
@@ -133,6 +144,7 @@ class LabelingTests(unittest.TestCase):
                 self.assertEqual(label_from_robot(cls, verdict, delay, cfg), expected)
 
     def test_review_label_reaches_model(self):
+        """Operatörün klip incelemesi modele ulaşıyor"""
         engine = DecisionEngine(EngineConfig(cameras=CAMS, learning=LearningConfig(refit_every=1)), seed=0)
         ev = event(1, cls="smoke", conf=0.5)
         engine.decide(ev, eta_min=3.0)
@@ -145,6 +157,7 @@ class LabelingTests(unittest.TestCase):
 
 class StoreTests(unittest.TestCase):
     def test_restart_restores_model_and_pending_events(self):
+        """Servis yeniden başlayınca model ve bekleyen olaylar kayıttan geri geliyor"""
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "olaylar.db")
             store = EventStore(path)
@@ -164,6 +177,7 @@ class StoreTests(unittest.TestCase):
             store.close()
 
     def test_shadow_mode_learns_from_examples(self):
+        """Gölge modda ve tatbikatlardan gelen örneklerle öğreniyor"""
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "olaylar.db")
             store = EventStore(path)
@@ -185,6 +199,7 @@ class StoreTests(unittest.TestCase):
             store.close()
 
     def test_manifest_marks_hard_examples(self):
+        """Kamera modelini yeniden eğitmek için zor örnekler doğru işaretleniyor"""
         with tempfile.TemporaryDirectory() as tmp:
             store = EventStore()
             engine = DecisionEngine(EngineConfig(cameras=CAMS), store=store, seed=0)
