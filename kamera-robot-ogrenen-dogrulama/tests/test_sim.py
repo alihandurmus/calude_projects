@@ -15,6 +15,7 @@ class SimulationTests(unittest.TestCase):
         cls.events = generate_events(cls.sc, DAYS, seed=0)
 
     def test_short_run_is_consistent(self):
+        """Simülasyon sayıları tutarlı: kaçırılan ≤ gerçek, maliyetlerin toplamı tutuyor"""
         for name in ("sabit", "basit", "onerilen"):
             with self.subTest(policy=name):
                 r = simulate(build_policy(name, self.cams, seed=0), self.sc, self.events, DAYS)
@@ -26,6 +27,7 @@ class SimulationTests(unittest.TestCase):
                 self.assertEqual(sum(r.missed.values()), sum(r.period_missed))
 
     def test_same_seed_same_result(self):
+        """Aynı tohumla simülasyon aynı sonucu veriyor"""
         a = simulate(build_policy("onerilen", self.cams, seed=3), self.sc, self.events, DAYS)
         b = simulate(build_policy("onerilen", self.cams, seed=3), self.sc, generate_events(self.sc, DAYS, 0), DAYS)
         self.assertEqual(a.cost, b.cost)
